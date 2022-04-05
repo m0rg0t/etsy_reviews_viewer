@@ -1,20 +1,22 @@
 <script lang="ts">
     import type {IReviewItem} from "./types";
+    //@ts-ignore
     import StarRating from 'svelte-star-rating';
     import {toPng} from 'html-to-image';
     import * as htmlToImage from "html-to-image";
     import download from 'downloadjs'
 
     export let review: IReviewItem;
+    export let hideSaveButton: boolean = false;
     let htmlReview;
-    let hideSaveImageButton = false;
+    //let hideSaveImageButton = false || hideSaveButton;
 
     const downloadReviewImage = () => {
-        hideSaveImageButton = true;
+        hideSaveButton = true;
         htmlToImage.toPng(htmlReview)
             .then(function (dataUrl) {
-                download(dataUrl, 'my-node.png');
-                hideSaveImageButton = false;
+                download(dataUrl, `review_from_${review.reviewer}_stars_${review.star_rating}.png`);
+                hideSaveButton = false;
             });
     }
 </script>
@@ -23,7 +25,7 @@
     <div class="review-header">
         <span class="review-name">{review.reviewer}</span>
         <span class="review-date">{review.date_reviewed}</span>
-        <button class:hide={hideSaveImageButton} on:click={downloadReviewImage}>Save as image
+        <button class:hide={hideSaveButton} on:click={downloadReviewImage}>Save as image
         </button>
     </div>
     <StarRating rating={review.star_rating}/>
