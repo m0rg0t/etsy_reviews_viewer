@@ -22,6 +22,7 @@
         reviews = JSON.parse(reviewsRawText)
     }
 
+    /* This function is called when user uploads a file */
     const uploadJson = async (e: any) => {
         const file = e.target.files[0];
         const reader = new FileReader();
