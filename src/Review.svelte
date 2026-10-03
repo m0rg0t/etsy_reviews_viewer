@@ -1,37 +1,36 @@
 <script lang="ts">
-    import type {IReviewItem} from "./types";
-    //@ts-ignore
+    import type {IReviewItem} from './types';
     import StarRating from 'svelte-star-rating';
+    import {tick} from 'svelte';
     import {toPng} from 'html-to-image';
-    import * as htmlToImage from "html-to-image";
-    import download from 'downloadjs'
-
+    import download from 'downloadjs';
+    import {exportImage} from './reviews';
     export let review: IReviewItem;
-    export let hideSaveButton: boolean = false;
-    let htmlReview;
-    //let hideSaveImageButton = false || hideSaveButton;
-
-    const downloadReviewImage = () => {
-        hideSaveButton = true;
-        htmlToImage.toPng(htmlReview)
-            .then(function (dataUrl) {
-                download(dataUrl, `review_from_${review.reviewer}_stars_${review.star_rating}.png`);
-                hideSaveButton = false;
-            });
-    }
+    export let hideSaveButton = false;
+    export let exporting = false;
+    let saving = false;
+    let error = '';
+    let htmlReview: HTMLDivElement;
+    const downloadReviewImage = async () => {
+        if (exporting || !htmlReview) return;
+        error = '';
+        try {
+            await exportImage({node: htmlReview, tick, capture: toPng,
+                save: url => { download(url, `review_from_${review.reviewer}_stars_${review.star_rating}.png`); },
+                setBusy: busy => { saving = busy; exporting = busy; }});
+        } catch { error = 'Could not export this review. Please try again.'; }
+    };
 </script>
-
 <div class="review" bind:this={htmlReview}>
     <div class="review-header">
         <span class="review-name">{review.reviewer}</span>
         <span class="review-date">{review.date_reviewed}</span>
-        <button class:hide={hideSaveButton} on:click={downloadReviewImage}>Save as image
-        </button>
+        <button class:hide={hideSaveButton || saving} disabled={exporting} on:click={downloadReviewImage}>Save as image</button>
     </div>
     <StarRating rating={review.star_rating}/>
     <p class="review-message">{review.message}</p>
-
 </div>
+{#if error}<p role="alert">{error}</p>{/if}
 
 <style>
     .hide {

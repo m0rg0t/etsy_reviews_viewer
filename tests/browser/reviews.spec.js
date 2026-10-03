@@ -1,0 +1,43 @@
+import {test, expect} from '@playwright/test';
+const fixture = [{reviewer: 'Synthetic Reviewer', date_reviewed: '01/02/2026', star_rating: 4, message: '<b>Synthetic review only</b>', order_id: 1}];
+test.beforeEach(async ({page}) => {
+  await page.route('**/*', route => new URL(route.request().url()).origin === 'http://127.0.0.1:4173' ? route.continue() : route.abort());
+  await page.goto('/');
+  await page.locator('#json').fill(JSON.stringify(fixture));
+  await expect(page.locator('.review')).toHaveCount(1);
+  await expect(page.locator('.review-name')).toHaveText('Synthetic Reviewer');
+});
+test('input and file validation preserve last valid reviews; empty and cancelled imports are safe', async ({page}) => {
+  await expect(page.locator('.review-message')).toHaveText('<b>Synthetic review only</b>');
+  await expect(page.locator('.review-message b')).toHaveCount(0);
+  await page.locator('#json').fill('{broken');
+  await expect(page.getByRole('alert')).toContainText('Invalid JSON');
+  await expect(page.locator('.review')).toHaveCount(1);
+  await page.locator('#upload_json').setInputFiles({name: 'reviews.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(fixture))});
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.locator('#upload_json').setInputFiles([]);
+  await expect(page.locator('.review')).toHaveCount(1);
+  await page.locator('#upload_json').setInputFiles({name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{}')});
+  await expect(page.getByRole('alert')).toContainText('JSON array');
+  await expect(page.locator('.review')).toHaveCount(1);
+  await page.locator('#json').fill('[]');
+  await expect(page.locator('.review')).toHaveCount(0);
+});
+test('image export failure restores controls and repeated export succeeds; CSV uses new API', async ({page}) => {
+  await page.evaluate(() => { window.originalDataUrl = HTMLCanvasElement.prototype.toDataURL; HTMLCanvasElement.prototype.toDataURL = () => {throw Error('Synthetic capture failure');}; });
+  await page.getByRole('button', {name: 'Download all review images'}).click();
+  await expect(page.getByRole('alert')).toContainText('Could not export images');
+  await expect(page.getByRole('button', {name: 'Save as image'})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Download all review images'})).toBeEnabled();
+  await page.getByRole('button', {name: 'Save as image'}).click();
+  await expect(page.getByRole('alert').last()).toContainText('Could not export this review');
+  await expect(page.getByRole('button', {name: 'Save as image'})).toBeEnabled();
+  await page.evaluate(() => { HTMLCanvasElement.prototype.toDataURL = window.originalDataUrl; });
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', {name: 'Download all review images'}).click();
+  expect((await download).suggestedFilename()).toBe('all_reviews.png');
+  await expect(page.getByRole('button', {name: 'Save as image'})).toBeVisible();
+  const csv = page.waitForEvent('download'); await page.getByRole('button', {name: 'Download CSV (for Excel)'}).click();
+  expect((await csv).suggestedFilename()).toBe('reviews.csv');
+  await page.screenshot({path: test.info().outputPath('synthetic-reviews.png'), fullPage: true});
+});
